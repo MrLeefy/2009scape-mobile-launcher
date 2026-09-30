@@ -1,8 +1,6 @@
 package net.kdt.pojavlaunch;
 
-import static net.kdt.pojavlaunch.prefs.LauncherPreferences.PREF_DISABLE_SWAP_HAND;
 import static net.kdt.pojavlaunch.prefs.LauncherPreferences.PREF_INSET_X;
-import static net.kdt.pojavlaunch.utils.MCOptionUtils.getMcScale;
 import static org.lwjgl.glfw.CallbackBridge.sendKeyPress;
 import static org.lwjgl.glfw.CallbackBridge.sendMouseButton;
 import static org.lwjgl.glfw.CallbackBridge.windowHeight;
@@ -39,7 +37,6 @@ import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.utils.EfficientAndroidLWJGLKeycode;
 import net.kdt.pojavlaunch.utils.JREUtils;
 import net.kdt.pojavlaunch.utils.LwjglGlfwKeycode;
-import net.kdt.pojavlaunch.utils.MCOptionUtils;
 import net.kdt.pojavlaunch.utils.MathUtils;
 
 import org.lwjgl.glfw.CallbackBridge;
@@ -48,7 +45,7 @@ import fr.spse.gamepad_remapper.RemapperManager;
 import fr.spse.gamepad_remapper.RemapperView;
 
 /**
- * Class dealing with showing minecraft surface and taking inputs to dispatch them to minecraft
+ * Class that displays the game surface and dispatches player input to the client.
  */
 public class GLFWGLSurface extends View implements GrabListener {
     /* Gamepad object for gamepad inputs, instantiated on need */
@@ -79,26 +76,14 @@ public class GLFWGLSurface extends View implements GrabListener {
     private final float mScaleFactor = LauncherPreferences.PREF_SCALE_FACTOR/100f;
     /* Sensitivity, adjusted according to screen size */
     private final double mSensitivityFactor = (1.4 * (1080f/ Tools.getDisplayMetrics((Activity) getContext()).heightPixels));
-    /* Use to detect simple and double taps */
+    /* Use to detect simple taps */
     private final TapDetector mSingleTapDetector = new TapDetector(1, TapDetector.DETECTION_METHOD_BOTH);
-    private final TapDetector mDoubleTapDetector = new TapDetector(2, TapDetector.DETECTION_METHOD_DOWN);
-    /* MC GUI scale, listened by MCOptionUtils */
-    private int mGuiScale;
-    @SuppressWarnings("FieldCanBeLocal") // it can't, otherwise the weak reference will disappear
-    private final MCOptionUtils.MCOptionListener mGuiScaleListener = () -> mGuiScale = getMcScale();
     /* Surface ready listener, used by the activity to launch minecraft */
     SurfaceReadyListener mSurfaceReadyListener = null;
     final Object mSurfaceReadyListenerLock = new Object();
     /* View holding the surface, either a SurfaceView or a TextureView */
     View mSurface;
 
-    /* List of hotbarKeys, used when clicking on the hotbar */
-    private static final int[] HOTBAR_KEYS = {
-            LwjglGlfwKeycode.GLFW_KEY_1, LwjglGlfwKeycode.GLFW_KEY_2,   LwjglGlfwKeycode.GLFW_KEY_3,
-            LwjglGlfwKeycode.GLFW_KEY_4, LwjglGlfwKeycode.GLFW_KEY_5,   LwjglGlfwKeycode.GLFW_KEY_6,
-            LwjglGlfwKeycode.GLFW_KEY_7, LwjglGlfwKeycode.GLFW_KEY_8, LwjglGlfwKeycode.GLFW_KEY_9};
-    /* Last hotbar button (0-9) registered */
-    private int mLastHotbarKey = -1;
     /* Events can start with only a move instead of an pointerDown due to mouse passthrough */
     private boolean mShouldBeDown = false;
     /* When fingers are really near to each other, it tends to either swap or remove a pointer ! */
@@ -111,15 +96,16 @@ public class GLFWGLSurface extends View implements GrabListener {
     private float mInitialX, mInitialY;
     /* Last first pointer positions non-scaled, used to scroll distance */
     private float mScrollLastInitialX, mScrollLastInitialY;
+    /* Keep camera steps proportional to drag distance rather than event rate. */
+    private float mCameraPanX, mCameraPanY;
     /* How much distance a finger has to go for touch sloppiness to be disabled */
     public static final int FINGER_STILL_THRESHOLD = (int) Tools.dpToPx(9);
     /* How much distance a finger has to go to scroll */
     public static final int FINGER_SCROLL_THRESHOLD = (int) Tools.dpToPx(6);
     /* Whether the button was triggered, used by the handler */
-    private static boolean triggeredLeftMouseButton = false;
-    /* Handle hotbar throw button and mouse mining button */
+    private boolean triggeredLeftMouseButton = false;
+    /* Hold-to-drag left mouse button */
     public static final int MSG_LEFT_MOUSE_BUTTON_CHECK = 1028;
-    public static final int MSG_DROP_ITEM_BUTTON_CHECK = 1029;
     private final Handler mHandler = new Handler(Looper.getMainLooper()) {
         public void handleMessage(Message msg) {
             if(msg.what == MSG_LEFT_MOUSE_BUTTON_CHECK) {
@@ -130,12 +116,6 @@ public class GLFWGLSurface extends View implements GrabListener {
                         MathUtils.dist(x, y, mInitialX, mInitialY) < FINGER_STILL_THRESHOLD) {
                     triggeredLeftMouseButton = true;
                     sendMouseButton(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_LEFT, true);
-                }
-                return;
-            }
-            if(msg.what == MSG_DROP_ITEM_BUTTON_CHECK) {
-                if(CallbackBridge.isGrabbing()){
-                    mHandler.sendEmptyMessageDelayed(MSG_DROP_ITEM_BUTTON_CHECK, 600);
                 }
             }
         }
@@ -151,14 +131,20 @@ public class GLFWGLSurface extends View implements GrabListener {
         super(context, attributeSet);
         setFocusable(true);
 
-        MCOptionUtils.addMCOptionListener(mGuiScaleListener);
     }
 
     /** Initialize the view and all its settings */
     @SuppressLint("ClickableViewAccessibility")
     public void start(){
-        System.out.println("Hello.. I can see the inset it: "+PREF_INSET_X);
         scaleGestureDetector = new ScaleGestureDetector(this.getContext(), new ScaleListener());
+        longPressDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public void onLongPress(MotionEvent e) {
+                if (LauncherPreferences.PREF_DISABLE_GESTURES || CallbackBridge.isGrabbing()) return;
+                CallbackBridge.putMouseEventWithCoords(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_RIGHT,
+                        CallbackBridge.mouseX, CallbackBridge.mouseY);
+            }
+        });
         if(LauncherPreferences.PREF_USE_ALTERNATE_SURFACE){
             SurfaceView surfaceView = new SurfaceView(getContext());
             mSurface = surfaceView;
@@ -220,14 +206,6 @@ public class GLFWGLSurface extends View implements GrabListener {
                 public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {}
             });
 
-            longPressDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
-                @Override
-                public void onLongPress(MotionEvent e) {
-                    super.onLongPress(e);
-                    CallbackBridge.putMouseEventWithCoords(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_RIGHT, CallbackBridge.mouseX, CallbackBridge.mouseY);
-                }
-            });
-
             ((ViewGroup)getParent()).addView(textureView);
         }
     }
@@ -240,10 +218,18 @@ public class GLFWGLSurface extends View implements GrabListener {
     @Override
     @SuppressWarnings("accessibility")
     public boolean onTouchEvent(MotionEvent e) {
-        scaleGestureDetector.onTouchEvent(e);
-        longPressDetector.onTouchEvent(e);
+        int action = e.getActionMasked();
+        if (!LauncherPreferences.PREF_DISABLE_GESTURES && scaleGestureDetector != null) {
+            scaleGestureDetector.onTouchEvent(e);
+        }
+        if (longPressDetector != null) longPressDetector.onTouchEvent(e);
         // Kinda need to send this back to the layout
-        if(((ControlLayout)getParent()).getModifiable()) return false;
+        if(((ControlLayout)getParent()).getModifiable()) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                releaseTouchState();
+            }
+            return false;
+        }
 
         // Looking for a mouse to handle, won't have an effect if no mouse exists.
         for (int i = 0; i < e.getPointerCount(); i++) {
@@ -258,40 +244,30 @@ public class GLFWGLSurface extends View implements GrabListener {
         // System.out.println("Pre touch, isTouchInHotbar=" + Boolean.toString(isTouchInHotbar) + ", action=" + MotionEvent.actionToString(e.getActionMasked()));
 
         //Getting scaled position from the event
-        /* Tells if a double tap happened [MOUSE GRAB ONLY]. Doesn't tell where though. */
         if(!CallbackBridge.isGrabbing()) {
             CallbackBridge.mouseX = (e.getX() * mScaleFactor);
             CallbackBridge.mouseY = (e.getY() * mScaleFactor);
-            //One android click = one MC click
-            if(mSingleTapDetector.onTouchEvent(e)){ //
+            // A multi-touch gesture must not complete the down/up pair as a tap.
+            if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP) {
+                mSingleTapDetector.reset();
+            } else if(mSingleTapDetector.onTouchEvent(e)){
                 CallbackBridge.putMouseEventWithCoords(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_LEFT, CallbackBridge.mouseX, CallbackBridge.mouseY);
+                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                    releaseTouchState();
+                }
                 return true;
             }
         }
 
-        // Check double tap state, used for the hotbar
-        boolean hasDoubleTapped = mDoubleTapDetector.onTouchEvent(e);
-
-        switch (e.getActionMasked()) {
+        switch (action) {
             case MotionEvent.ACTION_MOVE:
-                // Maybe here we do camera panning?
-                // Calculate the distance moved
                 float dx = (e.getX()) - startX;
                 float dy = (e.getY()) - startY;
-
-                // Do something with dx and dy here, like adjusting the camera position
-                try {
-                    panCamera(dx, dy);
-                } catch (InterruptedException ex) {
-                    throw new RuntimeException(ex);
-                }
-
-                // Update start position
                 startX = e.getX();
                 startY = e.getY();
 
-
                 int pointerCount = e.getPointerCount();
+                if (pointerCount == 1) panCamera(dx, dy);
 
                 // In-menu interactions
                 if(!CallbackBridge.isGrabbing()){
@@ -320,11 +296,8 @@ public class GLFWGLSurface extends View implements GrabListener {
 
                 // Camera movement
                 int pointerIndex = e.findPointerIndex(mCurrentPointerID);
-                int hudKeyHandled = handleGuiBar((int)e.getX(), (int) e.getY());
                 // Start movement, due to new pointer or loss of pointer
                 if (pointerIndex == -1 || mLastPointerCount != pointerCount || !mShouldBeDown) {
-                    if(hudKeyHandled != -1) break; //No pointer attribution on hotbar
-
                     mShouldBeDown = true;
                     mCurrentPointerID = e.getPointerId(0);
                     mPrevX = e.getX();
@@ -332,10 +305,8 @@ public class GLFWGLSurface extends View implements GrabListener {
                     break;
                 }
                 // Continue movement as usual
-                if(hudKeyHandled == -1){ //No camera on hotbar
-                    CallbackBridge.mouseX += (e.getX(pointerIndex) - mPrevX) * mSensitivityFactor;
-                    CallbackBridge.mouseY += (e.getY(pointerIndex) - mPrevY) * mSensitivityFactor;
-                }
+                CallbackBridge.mouseX += (e.getX(pointerIndex) - mPrevX) * mSensitivityFactor;
+                CallbackBridge.mouseY += (e.getY(pointerIndex) - mPrevY) * mSensitivityFactor;
 
                 mPrevX = e.getX(pointerIndex);
                 mPrevY = e.getY(pointerIndex);
@@ -346,96 +317,124 @@ public class GLFWGLSurface extends View implements GrabListener {
             case MotionEvent.ACTION_DOWN: // 0
                 startX = e.getX();
                 startY = e.getY();
-                hudKeyHandled = handleGuiBar((int)e.getX(), (int) e.getY());
-                boolean isTouchInHotbar = hudKeyHandled != -1;
-                if (isTouchInHotbar) {
-                    sendKeyPress(hudKeyHandled);
-                    if(hasDoubleTapped && hudKeyHandled == mLastHotbarKey && !PREF_DISABLE_SWAP_HAND){
-                        //Prevent double tapping Event on two different slots
-                        sendKeyPress(LwjglGlfwKeycode.GLFW_KEY_F);
-                    }
-
-                    mHandler.sendEmptyMessageDelayed(MSG_DROP_ITEM_BUTTON_CHECK, 350);
-                    CallbackBridge.sendCursorPos(CallbackBridge.mouseX, CallbackBridge.mouseY);
-                    mLastHotbarKey = hudKeyHandled;
-                    break;
-                }
-
-                CallbackBridge.sendCursorPos(CallbackBridge.mouseX, CallbackBridge.mouseY);
                 mPrevX =  e.getX();
                 mPrevY =  e.getY();
 
                 if (CallbackBridge.isGrabbing()) {
                     mCurrentPointerID = e.getPointerId(0);
-                    // It cause hold left mouse while moving camera
                     mInitialX = CallbackBridge.mouseX;
                     mInitialY = CallbackBridge.mouseY;
-                    mHandler.sendEmptyMessageDelayed(MSG_LEFT_MOUSE_BUTTON_CHECK, LauncherPreferences.PREF_LONGPRESS_TRIGGER);
+                    if (!LauncherPreferences.PREF_DISABLE_GESTURES) {
+                        mHandler.sendEmptyMessageDelayed(MSG_LEFT_MOUSE_BUTTON_CHECK,
+                                LauncherPreferences.PREF_LONGPRESS_TRIGGER);
+                    }
+                } else {
+                    CallbackBridge.mouseX = e.getX() * mScaleFactor;
+                    CallbackBridge.mouseY = e.getY() * mScaleFactor;
+                    CallbackBridge.sendCursorPos(CallbackBridge.mouseX, CallbackBridge.mouseY);
                 }
-                mLastHotbarKey = hudKeyHandled;
                 break;
 
-            case MotionEvent.ACTION_UP: // 1
-                // End of drag, reset the start position
-                startX = 0;
-                startY = 0;
+            case MotionEvent.ACTION_POINTER_DOWN:
+                if (e.getPointerCount() >= 2) {
+                    mHandler.removeMessages(MSG_LEFT_MOUSE_BUTTON_CHECK);
+                    if (triggeredLeftMouseButton) {
+                        sendMouseButton(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_LEFT, false);
+                        triggeredLeftMouseButton = false;
+                    }
+                    mShouldBeDown = false;
+                    mCurrentPointerID = -1;
+                    mScrollLastInitialX = e.getX(0);
+                    mScrollLastInitialY = e.getY(0);
+                }
                 break;
-            case MotionEvent.ACTION_CANCEL: // 3
-                mShouldBeDown = false;
-                mCurrentPointerID = -1;
 
-                hudKeyHandled = handleGuiBar((int)e.getX(), (int) e.getY());
-                isTouchInHotbar = hudKeyHandled != -1;
-                // We only treat in world events
-                if (!CallbackBridge.isGrabbing()) break;
-
-                // Stop the dropping of items
-                sendKeyPress(LwjglGlfwKeycode.GLFW_KEY_Q, 0, false);
-                mHandler.removeMessages(MSG_DROP_ITEM_BUTTON_CHECK);
-
-                // Remove the mouse left button
-                if(triggeredLeftMouseButton){
-                    sendMouseButton(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_LEFT, false);
-                    triggeredLeftMouseButton = false;
-                    break;
+            case MotionEvent.ACTION_POINTER_UP:
+                int liftedIndex = e.getActionIndex();
+                if (e.getPointerId(liftedIndex) == mCurrentPointerID) {
+                    mHandler.removeMessages(MSG_LEFT_MOUSE_BUTTON_CHECK);
+                    if (triggeredLeftMouseButton) {
+                        sendMouseButton(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_LEFT, false);
+                        triggeredLeftMouseButton = false;
+                    }
+                    mShouldBeDown = false;
+                    mCurrentPointerID = -1;
                 }
-                mHandler.removeMessages(MSG_LEFT_MOUSE_BUTTON_CHECK);
-
-                // In case of a short click, just send a quick right click
-                if(!LauncherPreferences.PREF_DISABLE_GESTURES &&
-                        MathUtils.dist(mInitialX, mInitialY, CallbackBridge.mouseX, CallbackBridge.mouseY) < FINGER_STILL_THRESHOLD){
-                    sendMouseButton(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_RIGHT, true);
-                    sendMouseButton(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_RIGHT, false);
+                if (e.getPointerCount() > 1) {
+                    int remainingIndex = liftedIndex == 0 ? 1 : 0;
+                    startX = e.getX(remainingIndex);
+                    startY = e.getY(remainingIndex);
                 }
+                break;
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                releaseTouchState();
                 break;
         }
 
         // Actualise the pointer count
-        mLastPointerCount = e.getPointerCount();
-        longPressDetector.onTouchEvent(e);
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            mLastPointerCount = 0;
+        } else {
+            mLastPointerCount = e.getPointerCount();
+        }
 
         return true;
     }
 
-    private void panCamera(float dx, float dy) throws InterruptedException {
-        //Log.i("downthecrop-pan","dx: " +dx + " dy: " + dy);
-        final float threshold = 8.0f; // adjust this value as needed to control the sensitivity of the panning
+    /** Release gesture-owned input when Android ends or cancels a touch sequence. */
+    public void releaseTouchState() {
+        mHandler.removeMessages(MSG_LEFT_MOUSE_BUTTON_CHECK);
+        mSingleTapDetector.reset();
+        if (triggeredLeftMouseButton) {
+            sendMouseButton(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_LEFT, false);
+            triggeredLeftMouseButton = false;
+        }
+        startX = 0;
+        startY = 0;
+        mShouldBeDown = false;
+        mCurrentPointerID = -1;
+        mLastPointerCount = 0;
+        mCameraPanX = 0;
+        mCameraPanY = 0;
+    }
 
-        // Check horizontal panning
-        if(dx > threshold) {
-            // Finger moved to the right, pan camera to the right
-            AWTInputBridge.sendKey((char)AWTInputEvent.VK_RIGHT, AWTInputEvent.VK_RIGHT);
-        } else if(dx < -threshold) {
-            AWTInputBridge.sendKey((char)AWTInputEvent.VK_LEFT, AWTInputEvent.VK_LEFT);
+    @Override
+    protected void onDetachedFromWindow() {
+        releaseTouchState();
+        super.onDetachedFromWindow();
+    }
+
+    private void panCamera(float dx, float dy) {
+        if (LauncherPreferences.PREF_DISABLE_GESTURES) {
+            mCameraPanX = 0;
+            mCameraPanY = 0;
+            return;
         }
 
-        // Check vertical panning
-        if(dy > threshold) {
-            // Finger moved down, pan camera up
-            AWTInputBridge.sendKey((char)AWTInputEvent.VK_UP, AWTInputEvent.VK_UP);
-        } else if(dy < -threshold) {
-            // Finger moved up, pan camera down
-            AWTInputBridge.sendKey((char)AWTInputEvent.VK_DOWN, AWTInputEvent.VK_DOWN);
+        // The mobile client rotates 15 degrees for each arrow-key press. Accumulate
+        // finger travel in density-independent pixels so rotation is not event-rate
+        // or screen-density dependent.
+        final float step = Tools.dpToPx(48);
+        mCameraPanX += dx;
+        mCameraPanY += dy;
+
+        while (mCameraPanX >= step) {
+            AWTInputBridge.sendKey((char) AWTInputEvent.VK_RIGHT, AWTInputEvent.VK_RIGHT);
+            mCameraPanX -= step;
+        }
+        while (mCameraPanX <= -step) {
+            AWTInputBridge.sendKey((char) AWTInputEvent.VK_LEFT, AWTInputEvent.VK_LEFT);
+            mCameraPanX += step;
+        }
+        while (mCameraPanY >= step) {
+            AWTInputBridge.sendKey((char) AWTInputEvent.VK_UP, AWTInputEvent.VK_UP);
+            mCameraPanY -= step;
+        }
+        while (mCameraPanY <= -step) {
+            AWTInputBridge.sendKey((char) AWTInputEvent.VK_DOWN, AWTInputEvent.VK_DOWN);
+            mCameraPanY += step;
         }
     }
 
@@ -580,51 +579,41 @@ public class GLFWGLSurface extends View implements GrabListener {
     }
 
 
-    public static class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+        private static final float ZOOM_STEP = 1.12f;
+        private float accumulatedScale = 1f;
 
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
-            Log.i("downthecrop","SCALE EVENT!");
-            float scaleFactor = detector.getScaleFactor();
-            if (scaleFactor > 1) { //Send F4 To Zoom Out
+            if (LauncherPreferences.PREF_DISABLE_GESTURES) {
+                accumulatedScale = 1f;
+                return true;
+            }
+
+            accumulatedScale *= detector.getScaleFactor();
+            while (accumulatedScale >= ZOOM_STEP) {
+                // F3 decreases the mobile client's zoom value (zoom in).
                 AWTInputBridge.sendKey((char)AWTInputEvent.VK_F3, AWTInputEvent.VK_F3);
-            } else { //116 F3 To Zoom In
-                AWTInputBridge.sendKey((char)AWTInputEvent.VK_F4,AWTInputEvent.VK_F4);
+                accumulatedScale /= ZOOM_STEP;
+            }
+            while (accumulatedScale <= 1f / ZOOM_STEP) {
+                // F4 increases the mobile client's zoom value (zoom out).
+                AWTInputBridge.sendKey((char)AWTInputEvent.VK_F4, AWTInputEvent.VK_F4);
+                accumulatedScale *= ZOOM_STEP;
             }
             return true;
         }
 
         @Override
         public boolean onScaleBegin(ScaleGestureDetector detector) {
+            accumulatedScale = 1f;
             return true;
         }
 
         @Override
         public void onScaleEnd(ScaleGestureDetector detector) {
-
+            accumulatedScale = 1f;
         }
-    }
-
-
-
-    /** @return the hotbar key, given the position. -1 if no key are pressed */
-    public int handleGuiBar(int x, int y) {
-        if (!CallbackBridge.isGrabbing()) return -1;
-
-        int barHeight = mcscale(20);
-        int barY = CallbackBridge.physicalHeight - barHeight;
-        if(y < barY) return -1;
-
-        int barWidth = mcscale(180);
-        int barX = (CallbackBridge.physicalWidth / 2) - (barWidth / 2);
-        if(x < barX || x >= barX + barWidth) return -1;
-
-        return HOTBAR_KEYS[(int) net.kdt.pojavlaunch.utils.MathUtils.map(x, barX, barX + barWidth, 0, 9)];
-    }
-
-    /** Return the size, given the UI scale size */
-    private int mcscale(int input) {
-        return (int)((mGuiScale * input)/ mScaleFactor);
     }
 
     /** Called when the size need to be set at any point during the surface lifecycle **/
@@ -654,7 +643,6 @@ public class GLFWGLSurface extends View implements GrabListener {
     private void realStart(Surface surface){
         // Initial size set
         refreshSize();
-        getMcScale();
 
         JREUtils.setupBridgeWindow(surface);
 

@@ -19,10 +19,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class AsyncAssetManager {
 
     private static final String PLUGIN_PATH = "plugins";
+    // SHA-256 of the previous upstream Mobile 2.4 stock control layout.
+    private static final String STOCK_CONTROL_LAYOUT_SHA256 =
+            "432ea7c23166f747e9ddfe98ce1c4269ca9ff3a9e7a6641c6b8135b1321a3daa";
 
     private AsyncAssetManager(){}
 
@@ -67,12 +73,38 @@ public class AsyncAssetManager {
             try {
                 Tools.copyAssetFile(ctx, "options.txt", Tools.DIR_GAME_NEW, false);
                 Tools.copyAssetFile(ctx, "default.json", Tools.CTRLMAP_PATH, false);
+                updateUnmodifiedStockControls(ctx);
                 Tools.copyAssetFile(ctx, "launcher_profiles.json", Tools.DIR_GAME_NEW, false);
             } catch (IOException e) {
                 Log.e("AsyncAssetManager", "Failed to unpack critical components !");
             }
             ProgressLayout.clearProgress(ProgressLayout.EXTRACT_SINGLE_FILES);
         });
+    }
+
+    /** Upgrade only the untouched stock layout; preserve any player's edits. */
+    private static void updateUnmodifiedStockControls(Context ctx) throws IOException {
+        File controlLayout = new File(Tools.CTRLDEF_FILE);
+        if (!controlLayout.isFile() || !STOCK_CONTROL_LAYOUT_SHA256.equals(sha256(controlLayout))) return;
+        Tools.copyAssetFile(ctx, "default.json", Tools.CTRLMAP_PATH, true);
+    }
+
+    private static String sha256(File file) throws IOException {
+        final MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException("SHA-256 is unavailable", e);
+        }
+
+        String contents = new String(FileUtils.readFileToByteArray(file), StandardCharsets.UTF_8);
+        digest.update(contents.replace("\r\n", "\n").getBytes(StandardCharsets.UTF_8));
+
+        StringBuilder result = new StringBuilder(64);
+        for (byte value : digest.digest()) {
+            result.append(String.format("%02x", value & 0xff));
+        }
+        return result.toString();
     }
 
     public static void unpackComponents(Context ctx){

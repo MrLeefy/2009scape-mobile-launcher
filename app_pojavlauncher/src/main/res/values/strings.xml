@@ -85,8 +85,8 @@
     <string name="mcl_setting_subtitle_ignore_notch">Ignore the notch and extends the screen under it.\nGives you a more immersive experience.</string>
     <string name="mcl_setting_title_resolution_scaler">Resolution Scaler</string>
     <string name="mcl_setting_subtitle_resolution_scaler">Allows you to decrease the game resolution. 100% is full resolution</string>
-    <string name="mcl_setting_title_longpresstrigger">How long will trigger after long press</string>
-    <string name="mcl_setting_subtitle_longpresstrigger">Change trigger time for long press in destroy block and drop item.</string>
+    <string name="mcl_setting_title_longpresstrigger">Long-press delay</string>
+    <string name="mcl_setting_subtitle_longpresstrigger">How long a stationary touch must last before it holds the left mouse button.</string>
     <string name="mcl_setting_title_backtorightmouse">Treat back button as right mouse</string>
     <string name="mcl_setting_subtitle_backtorightmouse">Some devices treats external right mouse as back button. If you are using external mouse, you should enable this.</string>
     <string name="mcl_setting_title_flat_button_style">Flat button style</string>
@@ -230,10 +230,8 @@
     <string name="dl_library_sha_fail">Library %s is damaged and will be redownloaded</string>
     <string name="dl_library_sha_unknown">Library %s can\'t be checked, have to assume it\'s good</string>
     <string name="dl_library_sha_pass">Library %s is fine and usable</string>
-    <string name="mcl_disable_gestures">Disable gestures</string>
-    <string name="mcl_disable_gestures_subtitle">Disables gestures, such as hold to break block, and tap to place a block.</string>
-    <string name="mcl_disable_swap_hand">Disable double tap to swap hands</string>
-    <string name="mcl_disable_swap_hand_subtitle">Disables double tap on an hotbar item to swap it in the second hand</string>
+    <string name="mcl_disable_gestures">Disable touch gestures</string>
+    <string name="mcl_disable_gestures_subtitle">Disables camera drag, pinch zoom, two-finger scrolling, and long-press actions.</string>
     <string name="mcl_setting_title_mousespeed">Mouse Speed</string>
     <string name="mcl_setting_subtitle_mousespeed">Changes the speed of the software mouse</string>
     <string name="customctrl_passthru">Mouse pass-thru</string>

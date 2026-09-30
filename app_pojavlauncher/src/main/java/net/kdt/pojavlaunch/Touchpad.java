@@ -8,7 +8,6 @@ import static net.kdt.pojavlaunch.prefs.LauncherPreferences.PREF_SCALE_FACTOR;
 import android.content.Context;
 import android.os.Build;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -86,10 +85,11 @@ public class Touchpad extends FrameLayout implements GrabListener{
 
                 // Check if there are two fingers on the screen
                 if (event.getPointerCount() == 2) {
-                    // Right-click event when a second finger touches the screen
-                    // Simulating right-click by sending GLFW_MOUSE_BUTTON_RIGHT event
-                    Log.i("downthecrop","Hi from a rightclick event!");
-                    CallbackBridge.putMouseEventWithCoords(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_RIGHT, CallbackBridge.mouseX, CallbackBridge.mouseY);
+                    // Two-finger right-click is a gesture, so honor the gesture setting.
+                    if (!LauncherPreferences.PREF_DISABLE_GESTURES) {
+                        CallbackBridge.putMouseEventWithCoords(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_RIGHT,
+                                CallbackBridge.mouseX, CallbackBridge.mouseY);
+                    }
                 }
 
                 mScrollLastInitialX = event.getX();
@@ -124,7 +124,6 @@ public class Touchpad extends FrameLayout implements GrabListener{
                     mouseY = Math.max(0, Math.min(currentDisplayMetrics.heightPixels, mouseY + (y - mPrevY) * LauncherPreferences.PREF_MOUSESPEED));
 
                     placeMouseAt(mouseX, mouseY);
-                    CallbackBridge.sendCursorPos(CallbackBridge.mouseX, CallbackBridge.mouseY);
                 }else mCurrentPointerID = event.getPointerId(0);
 
                 mPrevX = x;
@@ -132,9 +131,21 @@ public class Touchpad extends FrameLayout implements GrabListener{
                 break;
 
             case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                mCurrentPointerID = -1000;
                 mPrevX = x;
                 mPrevY = y;
-                mCurrentPointerID = -1000;
+                break;
+
+            case MotionEvent.ACTION_POINTER_UP:
+                if (event.getPointerId(event.getActionIndex()) == mCurrentPointerID) {
+                    mCurrentPointerID = -1000;
+                }
+                if (event.getPointerCount() > 1) {
+                    int remainingIndex = event.getActionIndex() == 0 ? 1 : 0;
+                    mPrevX = event.getX(remainingIndex);
+                    mPrevY = event.getY(remainingIndex);
+                }
                 break;
         }
 

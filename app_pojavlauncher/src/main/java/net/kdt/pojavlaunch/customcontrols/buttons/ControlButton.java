@@ -77,8 +77,20 @@ public class ControlButton extends TextView implements ControlInterface {
     }
 
     public void setVisible(boolean isVisible){
+        if (!isVisible) releaseActiveInput();
         if(mProperties.isHideable)
             setVisibility(isVisible ? VISIBLE : GONE);
+    }
+
+    /** Release active input before hiding a control so it cannot remain stuck. */
+    protected void releaseActiveInput() {
+        if (mIsToggled) {
+            mIsToggled = false;
+            invalidate();
+            sendKeyPresses(false);
+        } else if (!mProperties.isToggle && isActivated()) {
+            sendKeyPresses(false);
+        }
     }
 
     @Override
@@ -152,7 +164,6 @@ public class ControlButton extends TextView implements ControlInterface {
                 break;
 
             case MotionEvent.ACTION_UP: // 1
-            case MotionEvent.ACTION_CANCEL: // 3
             case MotionEvent.ACTION_POINTER_UP: // 6
                 if(getProperties().passThruEnabled){
                     View gameSurface = getControlLayoutParent().getGameSurface();
@@ -164,6 +175,19 @@ public class ControlButton extends TextView implements ControlInterface {
                 if(!triggerToggle()) {
                     sendKeyPresses(false);
                 }
+                break;
+
+            case MotionEvent.ACTION_CANCEL: // 3
+                if(getProperties().passThruEnabled){
+                    View gameSurface = getControlLayoutParent().getGameSurface();
+                    if(gameSurface != null) gameSurface.dispatchTouchEvent(event);
+                }
+                if(mIsPointerOutOfBounds) getControlLayoutParent().onTouch(this, event);
+                mIsPointerOutOfBounds = false;
+
+                // Cancellation is not a completed tap, so do not flip a latched
+                // control. Momentary controls still need their key released.
+                if(!getProperties().isToggle) sendKeyPresses(false);
                 break;
 
             default:
@@ -232,6 +256,11 @@ public class ControlButton extends TextView implements ControlInterface {
 
             case ControlData.SPECIALBTN_SCROLLUP:
                 if (!isDown) CallbackBridge.sendScroll(0, -1d);
+                break;
+            case ControlData.SPECIALBTN_DRAGCLICK:
+                if (mProperties.isToggle || isDown) {
+                    sendKeyPress(LwjglGlfwKeycode.GLFW_KEY_F5);
+                }
                 break;
             case ControlData.SPECIALBTN_MENU:
                 mControlLayout.notifyAppMenu();

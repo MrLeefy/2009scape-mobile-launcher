@@ -89,7 +89,7 @@ public class TapDetector {
         //A worthy tap happened
         mCurrentTapNumber += 1;
         if(mCurrentTapNumber >= mTapNumberToDetect){
-           resetTapDetectionState();
+           reset();
            return true;
         }
 
@@ -100,7 +100,7 @@ public class TapDetector {
     /**
      * Reset the double tap values.
      */
-   private void resetTapDetectionState(){
+   public void reset(){
        mCurrentTapNumber = 0;
        mLastEventTime = 0;
        mLastX = 9999;

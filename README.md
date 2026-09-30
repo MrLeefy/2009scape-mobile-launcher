@@ -19,6 +19,12 @@ This install is based on upstream Mobile 2.4 (released June 9, 2024). It include
 
 This repository contains the upstream Mobile 2.4 source snapshot plus this repository's Android build workflow. The app supports ARMv7, ARM64, x86, and x86_64 Android devices.
 
+## Default touch controls
+
+The bundled control layout is set up for 2009Scape: left and right click, Escape, Tab, the Android keyboard, virtual mouse, Shift, and a drag-click toggle are available on screen. The `CAM` drawer opens camera direction and zoom buttons. `GUI` hides or restores the overlay, and the layout can be changed in the control editor. An update refreshes the untouched stock layout and preserves customized layouts.
+
+Touch gestures include camera panning, pinch zoom, two-finger scrolling, long-press right click, and a configurable stationary hold for left click. The touch settings describe these actions and can disable gesture input.
+
 # Download
   
 [All GitHub releases](https://github.com/MrLeefy/2009scape-mobile-launcher/releases)
