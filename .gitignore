@@ -1,0 +1,11 @@
+/.gradle
+/build
+/*/build
+app_pojavlauncher/src/main/assets/components/jre
+app_pojavlauncher/src/main/assets/components/lwjgl3/version
+local.properties
+.idea/
+.DS_Store
+app_pojavlauncher/.cxx/
+.vs/
+app_pojavlauncher/upload.jks
