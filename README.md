@@ -7,15 +7,21 @@
   <a href="https://github.com/2009scape/2009Scape-mobile/releases"><img src="https://i.imgur.com/KUXPn6P.png" alt="2009scape Mobile play screen"/></a>
 </p>
 
-Unofficial, unsupported launcher source for running 2009Scape on Android. Based on Pojav/Boardwalk.
+Unofficial, unsupported launcher for running 2009Scape on Android. Based on Pojav/Boardwalk.
 
-## Repository snapshot
+## Install on Android
 
-This repository currently contains the upstream Mobile 2.4 source snapshot with both SD and HD support. It is a source baseline for community updates; no install APK is published here. The Java 25 and touch/camera changes described in the repository's earlier description are not included in this snapshot.
+Download the single [SD + HD APK from the latest GitHub release](https://github.com/MrLeefy/2009scape-mobile-launcher/releases/latest) and install it on your Android phone. It includes the 2009Scape client, Java runtime, and bundled mobile plugins, and defaults to `play.2009scape.org`. Android may ask you to allow installs from your browser or file manager.
+
+This install is based on upstream Mobile 2.4 (released June 9, 2024). It includes both SD and HD modes; it does not include later client or plugin updates. The Java 25 and touch/camera changes described in the repository's earlier description are not included.
+
+## Source baseline
+
+This repository contains the upstream Mobile 2.4 source snapshot plus this repository's Android build workflow. The app supports ARMv7, ARM64, x86, and x86_64 Android devices.
 
 # Download
   
-[Releases](https://github.com/2009scape/2009Scape-mobile/releases/)
+[All GitHub releases](https://github.com/MrLeefy/2009scape-mobile-launcher/releases)
 
 <hr>
 
